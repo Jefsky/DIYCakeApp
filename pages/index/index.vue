@@ -32,9 +32,12 @@
                 <button @click="decreaseLayers" :disabled="layers <= 1">减少层数</button>
                 <label>当前层数: {{ layers }}</label>
             </div>
+            <!-- 删除&清空装饰 -->
+            <div class="layer-controls">
+                <button @click="deleteModel" >删除当前装饰</button>
+                <button @click="deleteAllModel" >清空装饰</button>
+            </div>
 
-            <!-- 删除选中装饰物按钮 -->
-            <button @click="deleteSelectedDecoration" :disabled="!selectedDecoration">删除选中装饰</button>
         </div>
     </div>
 </template>
@@ -75,6 +78,8 @@
             const raycaster = new THREE.Raycaster(); // 射线检测
             const mouse = new THREE.Vector2(); // 鼠标坐标
             let isDragging = false; // 是否正在拖动装饰物
+            
+            let selectUuid = '';
 
             watch(layers, (newLayers, oldLayers) => {
                 if (selectedLayer.value >= newLayers) {
@@ -225,6 +230,7 @@
                     decoration.scale.set(scaleRatio, scaleRatio, scaleRatio); // 设置等比例缩放
                     decoration.position.set(0, layerIndex * layerHeight + decorationYOffset, 0);
 
+
                     scene.add(decoration);
                     loadedDecorations.push(decoration); // 确保这是 THREE.Object3D 实例
                     selectedDecoration.value = decoration;
@@ -232,6 +238,7 @@
                     // 更新装饰物的包围盒
                     decoration.boundingBox = new THREE.Box3().setFromObject(decoration);
                     console.log("装饰物已添加:", decoration);
+                    selectUuid = decoration.uuid;   // 绑定当前装饰，用于删除
                     renderScene();
                 } catch (error) {
                     console.error("添加装饰物时出错:", error);
@@ -252,6 +259,49 @@
                     });
                 });
             };
+
+            // 删除模型的函数
+            const deleteModel = () => {
+                if(!selectUuid){
+                    console.error('当前没有选中装饰');
+                }
+                // console.log(loadedDecorations);
+                // console.log(selectUuid);
+                // 在 loadedDecorations 中找到对应的模型
+                loadedDecorations.forEach((decoration) => {
+                    if (!(decoration instanceof THREE.Object3D)) {
+                        console.error('装饰物不是 THREE.Object3D 实例:', decoration);
+                        return; // 跳过这个装饰物
+                    }
+                    if (selectUuid == decoration.uuid){
+                        console.log('se',decoration)
+                        console.log(decoration.object)
+                        scene.remove(decoration);
+                        // 还可以选择释放模型资源，防止内存泄漏
+                       decoration.traverse(function(child) {
+                            if (child instanceof THREE.Mesh) {
+                                child.geometry.dispose();
+                                child.material.dispose();
+                            }
+                        });
+                        // 从 loadedModels 数组中移除该模型
+                        const index = loadedDecorations.indexOf(decoration);
+                        loadedDecorations.splice(index, 1);
+                        // console.log(loadedDecorations)
+                        selectUuid = '';    // 清空选中
+                    };
+                });
+            }
+            
+            // 清空装饰
+            const deleteAllModel = () => {
+                // 清空装饰物
+                loadedDecorations.forEach(decoration => {
+                    scene.remove(decoration); // 从场景中移除装饰物
+                });
+                loadedDecorations = []; // 清空装饰物数组
+                selectedDecoration.value = null; // 清空选中的装饰物
+            }
 
 
             // 获取装饰物列表
@@ -302,6 +352,7 @@
 
                     // 选中新的装饰物
                     selectedDecoration.value = intersects[0].object.parent; // 确保选中整个模型
+                    selectUuid = selectedDecoration.value.uuid;   // 绑定当前装饰，用于删除
                     selectedDecoration.value.traverse((child) => {
                         if (child.isMesh) {
                             child.material.emissive.set(0x444444);
@@ -522,7 +573,7 @@
                 layers.value = Math.floor(layers.value) + 1;
                 console.log(`增加层数，当前层数: ${layers.value}`);
                 createCake(); // 重新创建蛋糕
-                selectedLayer.value = layers.value - 1; // 设置为新的顶层
+                selectedLayer.value = layers.value; // 设置为新的顶层
                 console.log(`当前选择的层数: ${selectedLayer.value}`);
             };
 
@@ -539,20 +590,6 @@
                 }
             };
 
-            const deleteSelectedDecoration = () => {
-                console.log('正在删除选中的装饰物', selectedDecoration.value);
-
-                if (selectedDecoration.value) {
-                    scene.remove(selectedDecoration.value);
-                    loadedDecorations = loadedDecorations.filter(dec => dec !== selectedDecoration.value);
-                    selectedDecoration.value = null; // 清空选中的装饰物
-
-                    renderScene(); // 确保场景更新
-                } else {
-                    console.log('没有选中的装饰物，无法删除');
-                }
-            };
-
 
             return {
                 layers,
@@ -564,7 +601,8 @@
                 changeSelectedLayerColor,
                 increaseLayers,
                 decreaseLayers,
-                deleteSelectedDecoration, // 确保这里有
+                deleteModel,
+                deleteAllModel,
             };
         },
     };
