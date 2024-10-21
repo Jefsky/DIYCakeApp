@@ -34,10 +34,14 @@
             </div>
             <!-- 删除&清空装饰 -->
             <div class="layer-controls">
-                <button @click="deleteModel" >删除当前装饰</button>
-                <button @click="deleteAllModel" >清空装饰</button>
+                <button @click="deleteModel">删除当前装饰</button>
+                <button @click="deleteAllModel">清空装饰</button>
             </div>
-
+            <!-- 保存图片 -->
+            <div class="layer-controls">
+                <button @click="saveImage">生成图片</button>
+                <a id="download"></a>
+            </div>
         </div>
     </div>
 </template>
@@ -78,7 +82,7 @@
             const raycaster = new THREE.Raycaster(); // 射线检测
             const mouse = new THREE.Vector2(); // 鼠标坐标
             let isDragging = false; // 是否正在拖动装饰物
-            
+
             let selectUuid = '';
 
             watch(layers, (newLayers, oldLayers) => {
@@ -216,7 +220,7 @@
 
                     const layerHeight = 0.5; // 每层的高度
                     const layerIndex = selectedLayer.value; // 当前选中的层数
-                    const decorationYOffset = 0.2; // 装饰物与层的偏移量
+                    const decorationYOffset = 0.25; // 装饰物与层的偏移量
 
                     // 获取装饰物的边界盒
                     const box = new THREE.Box3().setFromObject(decoration);
@@ -238,7 +242,7 @@
                     // 更新装饰物的包围盒
                     decoration.boundingBox = new THREE.Box3().setFromObject(decoration);
                     console.log("装饰物已添加:", decoration);
-                    selectUuid = decoration.uuid;   // 绑定当前装饰，用于删除
+                    selectUuid = decoration.uuid; // 绑定当前装饰，用于删除
                     renderScene();
                 } catch (error) {
                     console.error("添加装饰物时出错:", error);
@@ -262,7 +266,7 @@
 
             // 删除模型的函数
             const deleteModel = () => {
-                if(!selectUuid){
+                if (!selectUuid) {
                     console.error('当前没有选中装饰');
                 }
                 // console.log(loadedDecorations);
@@ -273,12 +277,12 @@
                         console.error('装饰物不是 THREE.Object3D 实例:', decoration);
                         return; // 跳过这个装饰物
                     }
-                    if (selectUuid == decoration.uuid){
-                        console.log('se',decoration)
+                    if (selectUuid == decoration.uuid) {
+                        console.log('se', decoration)
                         console.log(decoration.object)
                         scene.remove(decoration);
                         // 还可以选择释放模型资源，防止内存泄漏
-                       decoration.traverse(function(child) {
+                        decoration.traverse(function(child) {
                             if (child instanceof THREE.Mesh) {
                                 child.geometry.dispose();
                                 child.material.dispose();
@@ -288,11 +292,11 @@
                         const index = loadedDecorations.indexOf(decoration);
                         loadedDecorations.splice(index, 1);
                         // console.log(loadedDecorations)
-                        selectUuid = '';    // 清空选中
+                        selectUuid = ''; // 清空选中
                     };
                 });
             }
-            
+
             // 清空装饰
             const deleteAllModel = () => {
                 // 清空装饰物
@@ -311,7 +315,6 @@
                         'https://develop-wxmp-api.blacktechcake.com/3dm/list?page=1&pageSize=20&type_id=13&user_id=100'
                     );
                     console.log('API 响应:', response.data);
-
                     // 确保 list 存在并且是一个数组
                     if (response.data && response.data.data && Array.isArray(response.data.data.list)) {
                         decorations.value = response.data.data.list;
@@ -325,7 +328,7 @@
 
             // 处理鼠标和触摸按下事件
             const onPointerDown = (event) => {
-                event.preventDefault();
+                // event.preventDefault();
                 const rect = threeContainer.value.getBoundingClientRect();
 
                 // 获取鼠标或触摸的位置
@@ -352,7 +355,7 @@
 
                     // 选中新的装饰物
                     selectedDecoration.value = intersects[0].object.parent; // 确保选中整个模型
-                    selectUuid = selectedDecoration.value.uuid;   // 绑定当前装饰，用于删除
+                    selectUuid = selectedDecoration.value.uuid; // 绑定当前装饰，用于删除
                     selectedDecoration.value.traverse((child) => {
                         if (child.isMesh) {
                             child.material.emissive.set(0x444444);
@@ -568,8 +571,11 @@
                 }
             });
 
-            // 增加层数
+            // 增加
             const increaseLayers = () => {
+                console.log('increaseLayers 被调用');
+                console.log('当前层数:', layers.value);
+                console.log('当前选择的层数:', selectedLayer.value);
                 layers.value = Math.floor(layers.value) + 1;
                 console.log(`增加层数，当前层数: ${layers.value}`);
                 createCake(); // 重新创建蛋糕
@@ -577,8 +583,11 @@
                 console.log(`当前选择的层数: ${selectedLayer.value}`);
             };
 
-            // 减少层数
+            // 减少
             const decreaseLayers = () => {
+                console.log('decreaseLayers 被调用');
+                console.log('当前层数:', layers.value);
+                console.log('当前选择的层数:', selectedLayer.value);
                 if (layers.value > 1) {
                     layers.value = Math.floor(layers.value) - 1;
                     console.log(`减少层数，当前层数: ${layers.value}`);
@@ -589,6 +598,34 @@
                     }
                 }
             };
+
+
+            // 保存图片
+            const saveImage = () => {
+                if (!renderer || !renderer.domElement) {
+                    console.error('Renderer 未正确初始化');
+                    return;
+                }
+
+                try {
+                    // 触发渲染
+                    renderer.render(scene, camera);
+
+                    // 将渲染结果转换为图片数据
+                    const imgData = renderer.domElement.toDataURL('image/png');
+
+                    // 创建一个 a 标签用于触发下载
+                    const link = document.getElementById('download');
+                    link.href = imgData;
+                    link.text = '点击下载';
+                    link.download = 'cake.png';
+                    console.log("下载链接:", link.href);
+                } catch (error) {
+                    console.error('保存图片时出错:', error);
+                }
+            };
+
+
 
 
             return {
@@ -603,6 +640,7 @@
                 decreaseLayers,
                 deleteModel,
                 deleteAllModel,
+                saveImage,
             };
         },
     };
